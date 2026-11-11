@@ -58,6 +58,11 @@ body.util .bar,body.util #feed,body.util footer,body.util #paste,body.util #msg{
 #res{min-height:1.6em;font-size:1.25rem}
 #tally{color:var(--mu);font:.9rem system-ui,sans-serif}
 @media (prefers-reduced-motion:reduce){#coin{transition-duration:.01s}}
+#prog{display:none;padding:8px 16px;border-bottom:1px solid var(--ln);font:.88rem system-ui,sans-serif;color:var(--mu)}
+#prog.on{display:block}
+body.util #prog{display:none}
+.track{height:8px;background:var(--sf);border:1px solid var(--ln);border-radius:99px;overflow:hidden;margin-top:6px}
+#pb{height:100%;width:0;background:var(--ac);transition:width .2s}
 footer{display:flex;gap:8px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--ln)}
 footer input{flex:1;min-width:0}
 </style>
@@ -73,6 +78,7 @@ footer input{flex:1;min-width:0}
   
 </div>
 <div id="paste"><input id="pn" placeholder="Nome del gioco"><textarea id="pt" placeholder="Incolla qui il testo del regolamento"></textarea><button id="psave" class="p">Salva regolamento</button></div>
+<div id="prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="ptx"></div><div class="track"><div id="pb"></div></div></div>
 <div id="feed"></div>
 <section id="util"><h2>Lancio del meeple</h2><div class="stage" aria-label="Meeple da lanciare"><div id="coin"><div class="face f1"><svg viewBox="0 0 100 100"><circle cx="50" cy="26" r="16"/><polygon points="50,38 88,56 82,70 67,66 73,92 27,92 33,66 18,70 12,56"/></svg></div><div class="face b f2"><svg viewBox="0 0 100 100"><circle cx="50" cy="26" r="16"/><polygon points="50,38 88,56 82,70 67,66 73,92 27,92 33,66 18,70 12,56"/></svg></div></div></div><div id="res" aria-live="polite">Tocca il meeple per lanciarlo</div><button id="toss" class="p">Lancia</button><div id="tally"></div></section>
 <footer>
@@ -98,24 +104,30 @@ async function dbDel(id){try{(await open()).transaction("games","readwrite").obj
 /* ---------- importazione ---------- */
 function chunk(pages){const out=[];pages.forEach((t,i)=>{const s=t.replace(/\s+/g," ").trim().split(/(?<=[.!?:])\s+/);let b="";for(const x of s){if(b&&b.length+x.length>800){out.push({p:i+1,t:b});b=""}b+=(b?" ":"")+x}if(b)out.push({p:i+1,t:b})});return out}
 async function importFile(f){
-  note("Importo il regolamento…");
+  
   try{
+    const nm=cleanName(f.name),h=await fhash(f);
+    if(games.some(x=>x.h===h||norm(cleanName(x.name))===norm(nm))){dupN++;note(`“${nm}” è già presente: non lo importo di nuovo.`);return}
     let pages=[];
     if(/\.pdf$/i.test(f.name)){
       if(!window.pdfjsLib){note("Per leggere un PDF serve la connessione, almeno la prima volta. Puoi importare anche un file di testo.");return}
       pdfjsLib.GlobalWorkerOptions.workerSrc=WORKER;
       const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
-      for(let i=1;i<=pdf.numPages;i++){const tc=await(await pdf.getPage(i)).getTextContent();pages.push(tc.items.map(x=>x.str).join(" "))}
+      for(let i=1;i<=pdf.numPages;i++){const tc=await(await pdf.getPage(i)).getTextContent();pages.push(tc.items.map(x=>x.str).join(" "));prog(PG.i,PG.n,nm,.9*i/pdf.numPages)}
     }else{const t=await f.text();for(let i=0;i<t.length;i+=3000)pages.push(t.slice(i,i+3000))}
     const chunks=chunk(pages);
     if(!chunks.length){note("Nel file non c’è testo leggibile. Se è una scansione, serve un PDF con testo selezionabile.");return}
-    const g={id:Date.now().toString(36),name:f.name.replace(/\.[^.]+$/,""),chunks};
+    const g={id:Date.now().toString(36),name:nm,h,chunks};
     prep(g);games.push(g);cur=g;await dbPut(g);fill();note("");
     feed.innerHTML="";hint(`“${g.name}” importato: ${chunks.length} passaggi. Fai la tua prima domanda.`);
   }catch(e){note("Importazione non riuscita: "+((e&&e.message)||e))}
 }
+function cleanName(s){let n=s.replace(/\.(pdf|txt|md)$/i,"").replace(/[_\-]+/g," ").replace(/\s+/g," ").trim();n=n.replace(/\s+(ita|it|eng|en|fr|de|es|italiano|italian|english)$/i,"");n=n.replace(/\b(ita|italiano|italian|eng|english|rules|rulebook|regolamento|regole|manuale|manual|istruzioni)\b/gi," ").replace(/\s+/g," ").trim();return n||s.replace(/\.(pdf|txt|md)$/i,"")}
+async function fhash(f){try{const b=await crypto.subtle.digest("SHA-256",await f.arrayBuffer());return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch(e){return f.size+":"+f.name}}
+let dupN=0,PG={i:1,n:1};
+function prog(i,n,name,fr){const p=$("#prog"),v=Math.round((i-1+fr)/n*100);p.classList.add("on");$("#ptx").textContent=`Importo ${i} di ${n}: ${name} · ${v}%`;$("#pb").style.width=v+"%";p.setAttribute("aria-valuenow",v)}
 const prep=g=>g.chunks.forEach(c=>c.k=toks(c.t));
-async function saveGame(name,pages){const chunks=chunk(pages);if(!chunks.length){note("Nel testo non c’è nulla da importare.");return}const g={id:Date.now().toString(36),name,chunks};prep(g);games.push(g);cur=g;await dbPut(g);fill();note("");feed.innerHTML="";hint(`“${g.name}” importato: ${chunks.length} passaggi. Fai la tua prima domanda.`)}
+async function saveGame(name,pages){if(games.some(x=>norm(cleanName(x.name))===norm(cleanName(name)))){note(`“${name}” è già presente: non lo importo di nuovo.`);return}const chunks=chunk(pages);if(!chunks.length){note("Nel testo non c’è nulla da importare.");return}const g={id:Date.now().toString(36),name,chunks};prep(g);games.push(g);cur=g;await dbPut(g);fill();note("");feed.innerHTML="";hint(`“${g.name}” importato: ${chunks.length} passaggi. Fai la tua prima domanda.`)}
 
 /* ---------- ricerca nel regolamento (BM25, funziona offline) ---------- */
 function search(g,terms,n=6){
@@ -194,7 +206,7 @@ function send(){const i=$("#q"),v=i.value.trim();if(!v)return;if(!cur){note("Imp
 addEventListener("error",e=>note("Errore: "+e.message));
 $("#txt").onclick=()=>$("#paste").classList.toggle("on");
 $("#psave").onclick=async()=>{const t=$("#pt").value.trim();if(!t)return;const pages=[];for(let i=0;i<t.length;i+=3000)pages.push(t.slice(i,i+3000));await saveGame($("#pn").value.trim()||"Gioco senza nome",pages);$("#pt").value="";$("#pn").value="";$("#paste").classList.remove("on")};
-$("#file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";const n0=games.length;for(const f of fs)await importFile(f);const ok=games.length-n0;if(fs.length>1){note(`Importati ${ok} regolamenti su ${fs.length}.`);feed.innerHTML="";hint(ok?`${ok} regolamenti importati. Scegli il gioco dal menu e fai una domanda.`:"Nessun file importato.")}};
+$("#file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";const n0=games.length;dupN=0;for(let i=0;i<fs.length;i++){PG={i:i+1,n:fs.length};prog(i+1,fs.length,cleanName(fs[i].name),0);await importFile(fs[i])}$("#pb").style.width="100%";setTimeout(()=>$("#prog").classList.remove("on"),700);const ok=games.length-n0;if(fs.length>1){note(`Importati ${ok} su ${fs.length}${dupN?`, ${dupN} già presenti`:""}.`);feed.innerHTML="";hint(ok?`${ok} regolamenti importati. Scegli il gioco dal menu e fai una domanda.`:dupN?"Erano già tutti presenti.":"Nessun file importato.")}};
 $("#sel").onchange=e=>{cur=games.find(g=>g.id===e.target.value)||null;feed.innerHTML="";cur&&hint(`Domande su “${cur.name}”.`)};
 let armed=0;
 $("#del").onclick=async e=>{
@@ -213,7 +225,7 @@ $("#go").onclick=send;
 $("#q").onkeydown=e=>{if(e.key==="Enter")send()};
 addEventListener("online",net);addEventListener("offline",net);net();
 (async()=>{
-  games=await dbAll();games.forEach(prep);cur=games[0]||null;fill();
+  games=await dbAll();games.forEach(g=>{prep(g);g.name=cleanName(g.name)});cur=games[0]||null;fill();
   hint(cur?`Domande su “${cur.name}”.`:"Importa un regolamento (PDF o testo) per iniziare.");
 })();
 if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
