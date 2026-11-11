@@ -63,13 +63,25 @@ body.util .bar,body.util #feed,body.util footer,body.util #paste,body.util #msg{
 body.util #prog{display:none}
 .track{height:8px;background:var(--sf);border:1px solid var(--ln);border-radius:99px;overflow:hidden;margin-top:6px}
 #pb{height:100%;width:0;background:var(--ac);transition:width .2s}
+#lib{display:none;flex:1;flex-direction:column;min-height:0}
+body.lib #lib{display:flex}
+body.lib .bar,body.lib #feed,body.lib footer,body.lib #paste,body.lib #msg,body.lib #prog{display:none}
+.lh{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;color:var(--mu);font:.9rem system-ui,sans-serif}
+#llist{flex:1;overflow-y:auto;padding:0 16px}
+.row{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--ln);cursor:pointer}
+.row input{width:22px;height:22px;accent-color:var(--ac);flex:none}
+.row span{flex:1;min-width:0;overflow-wrap:anywhere}
+.row small{color:var(--mu);font:.8rem system-ui,sans-serif}
+.la{display:flex;gap:8px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--ln)}
+.la button{flex:1;border-color:var(--c2);color:var(--c2)}
+.la button:disabled{border-color:var(--ln);color:var(--mu)}
 footer{display:flex;gap:8px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--ln)}
 footer input{flex:1;min-width:0}
 </style>
 </head>
 <body>
 <header><h1>THE MEEPLE RULE</h1><span id="net">offline</span></header>
-<nav id="tabs"><button id="tr" class="on">Regole</button><button id="tu">Utility</button></nav>
+<nav id="tabs"><button id="tr" class="on">Regole</button><button id="tu">Utility</button><button id="tl">Libreria</button></nav>
 <div class="bar">
   <select id="sel" aria-label="Gioco"></select>
   <label id="imp" class="btn">Importa<input id="file" type="file" accept="application/pdf,.pdf,text/plain,.txt,.md" multiple></label>
@@ -81,6 +93,7 @@ footer input{flex:1;min-width:0}
 <div id="prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="ptx"></div><div class="track"><div id="pb"></div></div></div>
 <div id="feed"></div>
 <section id="util"><h2>Lancio del meeple</h2><div class="stage" aria-label="Meeple da lanciare"><div id="coin"><div class="face f1"><svg viewBox="0 0 100 100"><circle cx="50" cy="26" r="16"/><polygon points="50,38 88,56 82,70 67,66 73,92 27,92 33,66 18,70 12,56"/></svg></div><div class="face b f2"><svg viewBox="0 0 100 100"><circle cx="50" cy="26" r="16"/><polygon points="50,38 88,56 82,70 67,66 73,92 27,92 33,66 18,70 12,56"/></svg></div></div></div><div id="res" aria-live="polite">Tocca il meeple per lanciarlo</div><button id="toss" class="p">Lancia</button><div id="tally"></div></section>
+<section id="lib"><div class="lh"><b id="lcount"></b><button id="lall">Seleziona tutti</button></div><div id="llist"></div><div class="la"><button id="ldel" disabled>Elimina selezionati</button><button id="ldelall">Elimina tutti</button></div></section>
 <footer>
   <input id="q" placeholder="Fai una domanda sul regolamento" autocomplete="off" enterkeyhint="send">
   <button id="go" class="p">Chiedi</button>
@@ -216,11 +229,23 @@ $("#del").onclick=async e=>{
   await dbDel(cur.id);games=games.filter(g=>g.id!==cur.id);cur=games[0]||null;fill();feed.innerHTML="";
   hint(cur?`Domande su “${cur.name}”.`:"Importa un regolamento (PDF o testo) per iniziare.");
 };
-const tab=u=>{document.body.classList.toggle("util",u);$("#tr").classList.toggle("on",!u);$("#tu").classList.toggle("on",u)};
-$("#tr").onclick=()=>tab(0);$("#tu").onclick=()=>tab(1);
+const tab=v=>{const b=document.body.classList;b.toggle("util",v===1);b.toggle("lib",v===2);$("#tr").classList.toggle("on",!v);$("#tu").classList.toggle("on",v===1);$("#tl").classList.toggle("on",v===2);if(v===2)renderLib()};
+$("#tr").onclick=()=>tab(0);$("#tu").onclick=()=>tab(1);$("#tl").onclick=()=>tab(2);
 let ang=0,busy=0,tally=[0,0];
 function toss(){if(busy)return;busy=1;$("#res").textContent="…";const r=Math.random()<.5?0:1;ang+=1080+(((r*180-ang%360)%360)+360)%360;$("#coin").style.transform=`rotateX(${ang}deg)`;setTimeout(()=>{tally[r]++;$("#res").textContent=r?"Corallo":"Azzurro";$("#tally").textContent=`Azzurro ${tally[0]} · Corallo ${tally[1]}`;busy=0},1700)}
 $("#toss").onclick=toss;document.querySelector(".stage").onclick=toss;
+let sel=new Set(),armD=0,armA=0;
+function renderLib(){
+  const L=$("#llist");L.innerHTML="";sel=new Set([...sel].filter(id=>games.some(g=>g.id===id)));
+  if(!games.length){const e=el("div","empty");e.style.padding="40px 0";e.textContent="Nessun regolamento importato.";L.append(e)}
+  games.forEach(g=>{const r=el("label","row"),c=el("input");c.type="checkbox";c.checked=sel.has(g.id);c.onchange=()=>{c.checked?sel.add(g.id):sel.delete(g.id);libState()};const n=el("span");n.textContent=g.name;const s=el("small");s.textContent=`${g.chunks.length} passaggi`;r.append(c,n,s);L.append(r)});
+  libState();
+}
+function libState(){const n=sel.size,t=games.length;armD=armA=0;$("#lcount").textContent=`${t} regolament${t===1?"o":"i"}${n?` · ${n} selezionat${n===1?"o":"i"}`:""}`;$("#ldel").disabled=!n;$("#ldelall").disabled=!t;$("#lall").disabled=!t;$("#lall").textContent=n===t&&t?"Deseleziona tutti":"Seleziona tutti";$("#ldel").textContent="Elimina selezionati";$("#ldelall").textContent="Elimina tutti"}
+$("#lall").onclick=()=>{if(sel.size===games.length)sel.clear();else games.forEach(g=>sel.add(g.id));renderLib()};
+async function removeGames(ids){for(const id of ids)await dbDel(id);games=games.filter(g=>!ids.includes(g.id));if(!cur||ids.includes(cur.id))cur=games[0]||null;sel.clear();fill();feed.innerHTML="";hint(cur?`Domande su “${cur.name}”.`:"Importa un regolamento (PDF o testo) per iniziare.");renderLib()}
+$("#ldel").onclick=e=>{if(!sel.size)return;if(!armD){armD=1;e.target.textContent=`Conferma: elimina ${sel.size}`;setTimeout(()=>{if(armD)libState()},3000);return}removeGames([...sel])};
+$("#ldelall").onclick=e=>{if(!games.length)return;if(!armA){armA=1;e.target.textContent=`Conferma: elimina tutti (${games.length})`;setTimeout(()=>{if(armA)libState()},3000);return}removeGames(games.map(g=>g.id))};
 $("#go").onclick=send;
 $("#q").onkeydown=e=>{if(e.key==="Enter")send()};
 addEventListener("online",net);addEventListener("offline",net);net();
