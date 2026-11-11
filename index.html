@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="icon-192.png">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>THE MEEPLE RULE</title>
+<style>
+:root{--bg:#000;--c2:#f2a7a0;--sf:#111416;--ln:#243440;--ac:#a9d8f2;--ac2:#6fb3d6;--tx:#e9f2f7;--mu:#8da1ad;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--tx);font:16px/1.55 Georgia,"Times New Roman",serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px}
+h1{margin:0;font-size:1.5rem;font-weight:700;color:var(--ac);letter-spacing:.01em}
+#net{font:.8rem system-ui,sans-serif;color:var(--mu);border:1px solid var(--ln);border-radius:99px;padding:3px 10px}
+#net.on{color:var(--ac);border-color:var(--ac2)}
+.bar{display:flex;gap:8px;padding:8px 16px 12px;border-bottom:1px solid var(--ln)}
+select,button,input{font:inherit;color:var(--tx);background:var(--sf);border:1px solid var(--ln);border-radius:10px;padding:10px 12px}
+select{flex:1;min-width:0}
+button{cursor:pointer;font-family:system-ui,sans-serif;font-size:.92rem}
+button.p{background:var(--ac);color:#000;border-color:var(--ac);font-weight:600}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+button:disabled{opacity:.5}
+#feed{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:18px}
+.empty{margin:auto;max-width:28ch;text-align:center;color:var(--mu)}
+.q{align-self:flex-end;max-width:85%;background:var(--ac);color:#000;border-radius:14px 14px 4px 14px;padding:8px 13px}
+.a{background:var(--sf);border:1px solid var(--ln);border-radius:14px 14px 14px 4px;padding:12px 14px;max-width:100%}
+.a.ext{border-style:dashed;border-color:var(--ac2)}
+.badge{display:inline-block;font:.78rem system-ui,sans-serif;color:var(--ac);border:1px solid var(--ac2);border-radius:6px;padding:1px 8px;margin-bottom:8px}
+.txt{white-space:pre-wrap;overflow-wrap:anywhere}
+.note{color:var(--mu);font:.85rem system-ui,sans-serif;margin-bottom:8px}
+details{margin-top:10px;font-size:.9rem;color:var(--mu)}
+summary{cursor:pointer;color:var(--ac);font-family:system-ui,sans-serif}
+.ps{border-left:2px solid var(--ac2);padding-left:10px;margin:8px 0}
+.ps b{color:var(--ac);font-family:system-ui,sans-serif;font-weight:600}
+.ext-btn{margin-top:10px}
+.btn{position:relative;overflow:hidden;display:inline-flex;align-items:center;border-radius:10px;padding:10px 12px;font:600 .92rem system-ui,sans-serif;cursor:pointer;background:var(--ac);color:#000}
+.btn input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0}
+#paste{display:none;flex-direction:column;gap:8px;padding:10px 16px;border-bottom:1px solid var(--ln)}
+#paste.on{display:flex}
+#paste textarea{min-height:120px;font:inherit;color:var(--tx);background:var(--sf);border:1px solid var(--ln);border-radius:10px;padding:10px}
+#tabs{display:flex;gap:6px;padding:4px 16px 10px}
+#tabs button{flex:1;border-radius:99px;padding:8px}
+#tabs button.on{background:var(--ac);color:#000;border-color:var(--ac);font-weight:600}
+#util{display:none;flex:1;overflow-y:auto;padding:24px 16px;flex-direction:column;align-items:center;gap:16px}
+body.util #util{display:flex}
+body.util .bar,body.util #feed,body.util footer,body.util #paste,body.util #msg{display:none}
+#util h2{margin:0;font-size:1.15rem;color:var(--ac)}
+.stage{perspective:700px;width:170px;height:170px;margin:12px 0;cursor:pointer}
+#coin{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform 1.6s cubic-bezier(.2,.7,.2,1)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.face svg{width:100%;height:100%}
+.face.b{transform:rotateX(180deg)}
+.f1 svg *{fill:var(--ac)}
+.f2 svg *{fill:var(--c2)}
+#res{min-height:1.6em;font-size:1.25rem}
+#tally{color:var(--mu);font:.9rem system-ui,sans-serif}
+@media (prefers-reduced-motion:reduce){#coin{transition-duration:.01s}}
+footer{display:flex;gap:8px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--ln)}
+footer input{flex:1;min-width:0}
+</style>
+</head>
+<body>
+<header><h1>THE MEEPLE RULE</h1><span id="net">offline</span></header>
+<nav id="tabs"><button id="tr" class="on">Regole</button><button id="tu">Utility</button></nav>
+<div class="bar">
+  <select id="sel" aria-label="Gioco"></select>
+  <label id="imp" class="btn">Importa<input id="file" type="file" accept="application/pdf,.pdf,text/plain,.txt,.md" multiple></label>
+  <button id="txt">Incolla</button>
+  <button id="del" title="Elimina gioco" aria-label="Elimina gioco">Elimina</button>
+  
+</div>
+<div id="paste"><input id="pn" placeholder="Nome del gioco"><textarea id="pt" placeholder="Incolla qui il testo del regolamento"></textarea><button id="psave" class="p">Salva regolamento</button></div>
+<div id="feed"></div>
+<section id="util"><h2>Lancio del meeple</h2><div class="stage" aria-label="Meeple da lanciare"><div id="coin"><div class="face f1"><svg viewBox="0 0 100 100"><circle cx="50" cy="26" r="16"/><polygon points="50,38 88,56 82,70 67,66 73,92 27,92 33,66 18,70 12,56"/></svg></div><div class="face b f2"><svg viewBox="0 0 100 100"><circle cx="50" cy="26" r="16"/><polygon points="50,38 88,56 82,70 67,66 73,92 27,92 33,66 18,70 12,56"/></svg></div></div></div><div id="res" aria-live="polite">Tocca il meeple per lanciarlo</div><button id="toss" class="p">Lancia</button><div id="tally"></div></section>
+<footer>
+  <input id="q" placeholder="Fai una domanda sul regolamento" autocomplete="off" enterkeyhint="send">
+  <button id="go" class="p">Chiedi</button>
+</footer>
+<script src="pdf.min.js"></script>
+<script src="pdf.worker.min.js"></script>
+<script>
+const WORKER="pdf.worker.min.js";
+const $=s=>document.querySelector(s);
+const STOP=new Set("il lo la i gli le un uno una di a da in con su per tra fra e ed o ma che chi cui non si se ci ne mi ti vi del dello della dei degli delle al allo alla ai agli alle dal dallo dalla dai dagli dalle nel nello nella nei negli nelle sul sullo sulla sui sugli sulle come quando dove cosa quale quali posso puo possono fare ho ha hanno essere sono era anche piu poi gia questo questa questi queste quello quella".split(" "));
+const norm=s=>s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+const toks=s=>(norm(s).match(/[a-z0-9]+/g)||[]).filter(w=>w.length>2&&!STOP.has(w)).map(w=>w.slice(0,6));
+let games=[],cur=null,S;
+
+/* ---------- archivio locale (IndexedDB) ---------- */
+const open=()=>new Promise((ok,ko)=>{const r=indexedDB.open("arbitro",1);r.onupgradeneeded=()=>r.result.createObjectStore("games",{keyPath:"id"});r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)});
+async function dbAll(){try{const d=await open();return await new Promise(ok=>{const q=d.transaction("games").objectStore("games").getAll();q.onsuccess=()=>ok(q.result);q.onerror=()=>ok([])})}catch(e){return[]}}
+async function dbPut(g){try{(await open()).transaction("games","readwrite").objectStore("games").put(g)}catch(e){}}
+async function dbDel(id){try{(await open()).transaction("games","readwrite").objectStore("games").delete(id)}catch(e){}}
+
+/* ---------- importazione ---------- */
+function chunk(pages){const out=[];pages.forEach((t,i)=>{const s=t.replace(/\s+/g," ").trim().split(/(?<=[.!?:])\s+/);let b="";for(const x of s){if(b&&b.length+x.length>800){out.push({p:i+1,t:b});b=""}b+=(b?" ":"")+x}if(b)out.push({p:i+1,t:b})});return out}
+async function importFile(f){
+  note("Importo il regolamento…");
+  try{
+    let pages=[];
+    if(/\.pdf$/i.test(f.name)){
+      if(!window.pdfjsLib){note("Per leggere un PDF serve la connessione, almeno la prima volta. Puoi importare anche un file di testo.");return}
+      pdfjsLib.GlobalWorkerOptions.workerSrc=WORKER;
+      const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+      for(let i=1;i<=pdf.numPages;i++){const tc=await(await pdf.getPage(i)).getTextContent();pages.push(tc.items.map(x=>x.str).join(" "))}
+    }else{const t=await f.text();for(let i=0;i<t.length;i+=3000)pages.push(t.slice(i,i+3000))}
+    const chunks=chunk(pages);
+    if(!chunks.length){note("Nel file non c’è testo leggibile. Se è una scansione, serve un PDF con testo selezionabile.");return}
+    const g={id:Date.now().toString(36),name:f.name.replace(/\.[^.]+$/,""),chunks};
+    prep(g);games.push(g);cur=g;await dbPut(g);fill();note("");
+    feed.innerHTML="";hint(`“${g.name}” importato: ${chunks.length} passaggi. Fai la tua prima domanda.`);
+  }catch(e){note("Importazione non riuscita: "+((e&&e.message)||e))}
+}
+const prep=g=>g.chunks.forEach(c=>c.k=toks(c.t));
+async function saveGame(name,pages){const chunks=chunk(pages);if(!chunks.length){note("Nel testo non c’è nulla da importare.");return}const g={id:Date.now().toString(36),name,chunks};prep(g);games.push(g);cur=g;await dbPut(g);fill();note("");feed.innerHTML="";hint(`“${g.name}” importato: ${chunks.length} passaggi. Fai la tua prima domanda.`)}
+
+/* ---------- ricerca nel regolamento (BM25, funziona offline) ---------- */
+function search(g,terms,n=6){
+  const N=g.chunks.length,df={},avg=g.chunks.reduce((a,c)=>a+c.k.length,0)/N||1;
+  g.chunks.forEach(c=>new Set(c.k).forEach(w=>df[w]=(df[w]||0)+1));
+  const q=[...new Set(terms)];
+  return g.chunks.map(c=>{const tf={};c.k.forEach(w=>tf[w]=(tf[w]||0)+1);let s=0;
+    for(const w of q){const f=tf[w];if(!f)continue;s+=Math.log(1+(N-df[w]+.5)/(df[w]+.5))*f*2.2/(f+1.2*(.25+.75*c.k.length/avg))}
+    return{c,s}}).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,n);
+}
+
+/* ---------- AI ---------- */
+async function sampler(){
+  if(S!==undefined)return S;
+  try{S=window.claude?await claude.use("sample"):null}catch(e){S=null}
+  return S;
+}
+async function ask(q){
+  const g=cur;if(!g)return;
+  const card=add("q",q);
+  const box=add("a","");feedEnd();
+  let terms=toks(q);
+  const sm=navigator.onLine?await sampler():null;
+  if(sm){
+    try{const r=await sm.json(`Gioco da tavolo: "${g.name}". Domanda dell’utente: "${q}"\nElenca 10-14 parole chiave, sinonimi e termini tecnici italiani che potrebbero comparire nel regolamento in relazione a questa domanda, anche se l’utente ha usato parole diverse. Rispondi solo con JSON: {"termini":["..."]}`);
+      terms=terms.concat(toks((r.termini||[]).join(" ")))}catch(e){}
+  }
+  const hits=search(g,terms);
+  const txt=el("div","txt");box.append(txt);
+  if(!sm){
+    txt.className="note";txt.textContent=hits.length?"Modalità offline: ecco i passaggi del regolamento più pertinenti.":"Nel regolamento non trovo passaggi pertinenti.";
+    passages(box,hits,true);return;
+  }
+  if(!hits.length){txt.textContent="Nel regolamento non trovo nulla di pertinente a questa domanda.";extBtn(box,g,q);return}
+  const ctx=hits.map(h=>`[pag. ${h.c.p}] ${h.c.t}`).join("\n\n");
+  try{
+    await sm(`Sei un arbitro esperto del gioco da tavolo "${g.name}". Rispondi in italiano alla domanda usando ESCLUSIVAMENTE i passaggi del regolamento qui sotto. Elabora una risposta chiara e ragionata con parole tue, collegando i passaggi quando serve: non copiarli e non fermarti alle parole esatte della domanda. Cita i riferimenti come (pag. N). Se i passaggi non bastano, dillo apertamente, spiega cosa manca e non inventare.\n\nPassaggi:\n${ctx}\n\nDomanda: ${q}`,{onText:({text})=>{txt.textContent=text;feedEnd()},cache:false});
+  }catch(e){
+    txt.className="note";txt.textContent=e&&e.code==="not_granted"?"Senza il permesso all’AI ti mostro solo i passaggi.":"Risposta non disponibile ora. Ecco i passaggi più pertinenti.";
+  }
+  passages(box,hits,false);extBtn(box,g,q);feedEnd();
+}
+function passages(box,hits,open){
+  if(!hits.length)return;
+  const d=el("details");d.open=open;const s=el("summary");s.textContent=`Passaggi del regolamento (${hits.length})`;d.append(s);
+  hits.forEach(h=>{const p=el("div","ps");const b=el("b");b.textContent=`pag. ${h.c.p}`;const t=el("div");t.textContent=h.c.t;p.append(b,t);d.append(p)});
+  box.append(d);
+}
+function extBtn(box,g,q){
+  const b=el("button","ext-btn");b.textContent="Cerca fuori dal regolamento";
+  b.onclick=async()=>{
+    b.disabled=true;const sm=await sampler();
+    const x=add("a ext","");const bd=el("span","badge");bd.textContent="Fuori dal regolamento, non verificato";const t=el("div","txt");x.append(bd,t);feedEnd();
+    if(!sm){t.textContent="Per cercare fuori dal regolamento serve la connessione.";return}
+    try{await sm(`Sei un esperto di giochi da tavolo. Il regolamento importato di "${g.name}" non risponde in modo completo a questa domanda. Rispondi in italiano dalla tua conoscenza generale, dicendo chiaramente che l’informazione non è verificata sul regolamento e che può variare tra edizioni. Domanda: ${q}`,{onText:({text})=>{t.textContent=text;feedEnd()},cache:false})}
+    catch(e){t.textContent="Ricerca non disponibile ora."}
+  };
+  box.append(b);
+}
+
+/* ---------- interfaccia ---------- */
+const feed=$("#feed");
+function el(t,c){const e=document.createElement(t);if(c)e.className=c;return e}
+function add(c,t){const e=el("div",c);e.textContent=t;feed.append(e);feedEnd();return e}
+function feedEnd(){feed.scrollTop=feed.scrollHeight}
+function hint(t){const e=el("div","empty");e.textContent=t;feed.append(e)}
+function note(t){let n=$("#msg");if(!n){n=el("div","note");n.id="msg";n.style.padding="0 16px";document.querySelector(".bar").after(n)}n.textContent=t;n.hidden=!t}
+function fill(){
+  const s=$("#sel");s.innerHTML="";
+  if(!games.length){const o=el("option");o.textContent="Nessun regolamento";s.append(o)}
+  games.forEach(g=>{const o=el("option");o.value=g.id;o.textContent=g.name;if(cur&&g.id===cur.id)o.selected=true;s.append(o)});
+  $("#del").disabled=!cur;
+}
+function net(){const n=$("#net");const on=navigator.onLine;n.textContent=on?"online":"offline";n.className=on?"on":""}
+function send(){const i=$("#q"),v=i.value.trim();if(!v)return;if(!cur){note("Importa prima un regolamento.");return}i.value="";ask(v)}
+addEventListener("error",e=>note("Errore: "+e.message));
+$("#txt").onclick=()=>$("#paste").classList.toggle("on");
+$("#psave").onclick=async()=>{const t=$("#pt").value.trim();if(!t)return;const pages=[];for(let i=0;i<t.length;i+=3000)pages.push(t.slice(i,i+3000));await saveGame($("#pn").value.trim()||"Gioco senza nome",pages);$("#pt").value="";$("#pn").value="";$("#paste").classList.remove("on")};
+$("#file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";const n0=games.length;for(const f of fs)await importFile(f);const ok=games.length-n0;if(fs.length>1){note(`Importati ${ok} regolamenti su ${fs.length}.`);feed.innerHTML="";hint(ok?`${ok} regolamenti importati. Scegli il gioco dal menu e fai una domanda.`:"Nessun file importato.")}};
+$("#sel").onchange=e=>{cur=games.find(g=>g.id===e.target.value)||null;feed.innerHTML="";cur&&hint(`Domande su “${cur.name}”.`)};
+let armed=0;
+$("#del").onclick=async e=>{
+  if(!cur)return;
+  if(!armed){armed=1;e.target.textContent="Conferma";setTimeout(()=>{armed=0;e.target.textContent="Elimina"},3000);return}
+  armed=0;e.target.textContent="Elimina";
+  await dbDel(cur.id);games=games.filter(g=>g.id!==cur.id);cur=games[0]||null;fill();feed.innerHTML="";
+  hint(cur?`Domande su “${cur.name}”.`:"Importa un regolamento (PDF o testo) per iniziare.");
+};
+const tab=u=>{document.body.classList.toggle("util",u);$("#tr").classList.toggle("on",!u);$("#tu").classList.toggle("on",u)};
+$("#tr").onclick=()=>tab(0);$("#tu").onclick=()=>tab(1);
+let ang=0,busy=0,tally=[0,0];
+function toss(){if(busy)return;busy=1;$("#res").textContent="…";const r=Math.random()<.5?0:1;ang+=1080+(((r*180-ang%360)%360)+360)%360;$("#coin").style.transform=`rotateX(${ang}deg)`;setTimeout(()=>{tally[r]++;$("#res").textContent=r?"Corallo":"Azzurro";$("#tally").textContent=`Azzurro ${tally[0]} · Corallo ${tally[1]}`;busy=0},1700)}
+$("#toss").onclick=toss;document.querySelector(".stage").onclick=toss;
+$("#go").onclick=send;
+$("#q").onkeydown=e=>{if(e.key==="Enter")send()};
+addEventListener("online",net);addEventListener("offline",net);net();
+(async()=>{
+  games=await dbAll();games.forEach(prep);cur=games[0]||null;fill();
+  hint(cur?`Domande su “${cur.name}”.`:"Importa un regolamento (PDF o testo) per iniziare.");
+})();
+if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+</script>
+</body>
+</html>
