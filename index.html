@@ -128,19 +128,19 @@ async function importFile(f){
 async function importOnce(f,retry){
   
   try{
-    const buf=await TO(f.arrayBuffer(),T.rd,"tempo scaduto nella lettura del file (è disponibile sul telefono?)"),nm=cleanName(f.name),h=await fhash(buf);
+    st("leggo il file");const buf=await TO(f.arrayBuffer(),T.rd,"tempo scaduto nella lettura del file (è disponibile sul telefono?)"),nm=cleanName(f.name),h=await fhash(buf);
     if(games.some(x=>x.h===h||norm(cleanName(x.name))===norm(nm))){dupN++;note(`“${nm}” è già presente: non lo importo di nuovo.`);return"dup"}
-    let pages=[];
+    st("apro il file");let pages=[];
     if(/\.pdf$/i.test(f.name)){
       if(!window.pdfjsLib){bad(fz(f),"lettore PDF non disponibile (serve la connessione)");note("Per leggere un PDF serve la connessione, almeno la prima volta. Puoi importare anche un file di testo.");return"fail"}
       pdfjsLib.GlobalWorkerOptions.workerSrc=WORKER;
       const task=pdfjsLib.getDocument({data:new Uint8Array(buf),worker:getWorker()});let pdf;try{pdf=await TO(task.promise,T.doc,"tempo scaduto in apertura del PDF")}catch(e){try{task.destroy()}catch(_){}throw e}
-      try{for(let i=1;i<=pdf.numPages;i++){const pg=await TO(pdf.getPage(i),T.pg,"tempo scaduto alla pagina "+i),tc=await TO(pg.getTextContent(),T.pg,"tempo scaduto alla pagina "+i);pages.push(tc.items.map(x=>x.str).join(" "));pg.cleanup();prog(PG.i,PG.n,nm,.9*i/pdf.numPages);await new Promise(r=>setTimeout(r,0))}}finally{try{pdf.destroy()}catch(e){}}
+      try{for(let i=1;i<=pdf.numPages;i++){const pg=await TO(pdf.getPage(i),T.pg,"tempo scaduto alla pagina "+i),tc=await TO(pg.getTextContent(),T.pg,"tempo scaduto alla pagina "+i);pages.push(tc.items.map(x=>x.str).join(" "));pg.cleanup();STAGE="pag. "+i+"/"+pdf.numPages;prog(PG.i,PG.n,nm,.9*i/pdf.numPages);await new Promise(r=>setTimeout(r,0))}}finally{try{pdf.destroy()}catch(e){}}
     }else{const t=await f.text();for(let i=0;i<t.length;i+=3000)pages.push(t.slice(i,i+3000))}
     const chunks=chunk(pages);
     if(!chunks.length){bad(fz(f),"nessun testo leggibile (forse è una scansione)");note("Nel file non c’è testo leggibile. Se è una scansione, serve un PDF con testo selezionabile.");return"fail"}
     const g={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:nm,h,chunks};
-    prep(g);if(!await dbPut(g)){bad(fz(f),"salvataggio non riuscito (spazio insufficiente?)");note("Salvataggio non riuscito.");return"fail"}
+    st("salvo");prep(g);if(!await dbPut(g)){bad(fz(f),"salvataggio non riuscito (spazio insufficiente?)");note("Salvataggio non riuscito.");return"fail"}
     games.push(g);cur=g;fill();note("");
     feed.innerHTML="";hint(`“${g.name}” importato: ${chunks.length} passaggi. Fai la tua prima domanda.`);
     return"ok"
@@ -168,7 +168,9 @@ function showFail(save=true){
   x.textContent="Chiudi";x.onclick=()=>{FAIL=[];showFail()};
   R.append(t,ul,x);R.classList.add("on");
 }
-function prog(i,n,name,fr){const p=$("#prog"),v=Math.round((i-1+fr)/n*100);p.classList.add("on");$("#ptx").textContent=`Importo ${i} di ${n}: ${name} · ${v}%`;$("#pb").style.width=v+"%";p.setAttribute("aria-valuenow",v)}
+let STAGE="",PN="",PF=0;
+function st(s){STAGE=s;prog(PG.i,PG.n,PN,PF)}
+function prog(i,n,name,fr){PN=name;PF=fr;const p=$("#prog"),v=Math.round((i-1+fr)/n*100);p.classList.add("on");$("#ptx").textContent=`Importo ${i} di ${n}: ${name} · ${v}%${STAGE?" · "+STAGE:""}`;$("#pb").style.width=v+"%";p.setAttribute("aria-valuenow",v)}
 const prep=g=>g.chunks.forEach(c=>c.k=toks(c.t));
 async function saveGame(name,pages){if(games.some(x=>norm(cleanName(x.name))===norm(cleanName(name)))){note(`“${name}” è già presente: non lo importo di nuovo.`);return}const chunks=chunk(pages);if(!chunks.length){note("Nel testo non c’è nulla da importare.");return}const g={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,chunks};prep(g);games.push(g);cur=g;await dbPut(g);fill();note("");feed.innerHTML="";hint(`“${g.name}” importato: ${chunks.length} passaggi. Fai la tua prima domanda.`)}
 
@@ -244,12 +246,13 @@ function fill(){
   games.forEach(g=>{const o=el("option");o.value=g.id;o.textContent=g.name;if(cur&&g.id===cur.id)o.selected=true;s.append(o)});
   $("#del").disabled=!cur;
 }
-function net(){const n=$("#net");const on=navigator.onLine;n.textContent=(on?"online":"offline")+" · v11";n.className=on?"on":""}
+function net(){const n=$("#net");const on=navigator.onLine;n.textContent=(on?"online":"offline")+" · v12";n.className=on?"on":""}
 function send(){const i=$("#q"),v=i.value.trim();if(!v)return;if(!cur){note("Importa prima un regolamento.");return}i.value="";ask(v)}
 addEventListener("error",e=>note("Errore: "+e.message));
+addEventListener("unhandledrejection",e=>note("Errore: "+((e.reason&&e.reason.message)||e.reason)));
 $("#txt").onclick=()=>$("#paste").classList.toggle("on");
 $("#psave").onclick=async()=>{const t=$("#pt").value.trim();if(!t)return;const pages=[];for(let i=0;i<t.length;i+=3000)pages.push(t.slice(i,i+3000));await saveGame($("#pn").value.trim()||"Gioco senza nome",pages);$("#pt").value="";$("#pn").value="";$("#paste").classList.remove("on")};
-$("#file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";const n0=games.length;dupN=0;FAIL=[];TOFAIL=0;showFail();keepAwake(true);for(let i=0;i<fs.length;i++){PG={i:i+1,n:fs.length};prog(i+1,fs.length,cleanName(fs[i].name),0);await importFile(fs[i]);showFail();if(TOFAIL>=3){for(let j=i+1;j<fs.length;j++)bad(fz(fs[j]),"non provato: interrotto dopo blocchi ripetuti");showFail();break}await new Promise(r=>setTimeout(r,30))}keepAwake(false);resetWorker();$("#pb").style.width="100%";setTimeout(()=>$("#prog").classList.remove("on"),700);const ok=games.length-n0;if(fs.length>1){note(`Importati ${ok} su ${fs.length}${dupN?`, ${dupN} già presenti`:""}${FAIL.length?`, ${FAIL.length} con errore`:""}.`);feed.innerHTML="";hint(ok?`${ok} regolamenti importati. Scegli il gioco dal menu e fai una domanda.`:dupN?"Erano già tutti presenti.":"Nessun file importato.")}showFail()};
+$("#file").onchange=async e=>{try{const fs=[...e.target.files];e.target.value="";if(!fs.length)return;note(`Ricevuti ${fs.length} file…`);const n0=games.length;dupN=0;FAIL=[];TOFAIL=0;showFail();keepAwake(true);for(let i=0;i<fs.length;i++){STAGE="";PG={i:i+1,n:fs.length};prog(i+1,fs.length,cleanName(fs[i].name),0);await importFile(fs[i]);showFail();if(TOFAIL>=3){for(let j=i+1;j<fs.length;j++)bad(fz(fs[j]),"non provato: interrotto dopo blocchi ripetuti");showFail();break}await new Promise(r=>setTimeout(r,30))}keepAwake(false);resetWorker();$("#pb").style.width="100%";setTimeout(()=>$("#prog").classList.remove("on"),700);const ok=games.length-n0;if(fs.length>1){note(`Importati ${ok} su ${fs.length}${dupN?`, ${dupN} già presenti`:""}${FAIL.length?`, ${FAIL.length} con errore`:""}.`);feed.innerHTML="";hint(ok?`${ok} regolamenti importati. Scegli il gioco dal menu e fai una domanda.`:dupN?"Erano già tutti presenti.":"Nessun file importato.")}showFail()}catch(err){keepAwake(false);note("Errore: "+((err&&err.message)||err))}};
 $("#sel").onchange=e=>{cur=games.find(g=>g.id===e.target.value)||null;feed.innerHTML="";cur&&hint(`Domande su “${cur.name}”.`)};
 let armed=0;
 $("#del").onclick=async e=>{
