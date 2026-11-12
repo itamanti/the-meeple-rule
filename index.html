@@ -5,6 +5,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>THE MEEPLE RULE</title>
 <style>
@@ -122,14 +123,14 @@ function chunk(pages){const out=[];pages.forEach((t,i)=>{const s=t.replace(/\s+/
 async function importFile(f){
   
   try{
-    const buf=await f.arrayBuffer(),nm=cleanName(f.name),h=await fhash(buf);
+    const buf=await TO(f.arrayBuffer(),60000,"lettura del file non riuscita (è disponibile sul telefono?)"),nm=cleanName(f.name),h=await fhash(buf);
     if(games.some(x=>x.h===h||norm(cleanName(x.name))===norm(nm))){dupN++;note(`“${nm}” è già presente: non lo importo di nuovo.`);return}
     let pages=[];
     if(/\.pdf$/i.test(f.name)){
       if(!window.pdfjsLib){bad(f.name,"lettore PDF non disponibile (serve la connessione)");note("Per leggere un PDF serve la connessione, almeno la prima volta. Puoi importare anche un file di testo.");return}
       pdfjsLib.GlobalWorkerOptions.workerSrc=WORKER;
-      const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
-      for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i),tc=await pg.getTextContent();pages.push(tc.items.map(x=>x.str).join(" "));pg.cleanup();prog(PG.i,PG.n,nm,.9*i/pdf.numPages);await new Promise(r=>setTimeout(r,0))}try{await pdf.destroy()}catch(e){}
+      const task=pdfjsLib.getDocument({data:new Uint8Array(buf)});let pdf;try{pdf=await TO(task.promise,60000)}catch(e){try{task.destroy()}catch(_){}throw e}
+      try{for(let i=1;i<=pdf.numPages;i++){const pg=await TO(pdf.getPage(i),45000),tc=await TO(pg.getTextContent(),45000);pages.push(tc.items.map(x=>x.str).join(" "));pg.cleanup();prog(PG.i,PG.n,nm,.9*i/pdf.numPages);await new Promise(r=>setTimeout(r,0))}}finally{try{pdf.destroy()}catch(e){}}
     }else{const t=await f.text();for(let i=0;i<t.length;i+=3000)pages.push(t.slice(i,i+3000))}
     const chunks=chunk(pages);
     if(!chunks.length){bad(f.name,"nessun testo leggibile (forse è una scansione)");note("Nel file non c’è testo leggibile. Se è una scansione, serve un PDF con testo selezionabile.");return}
@@ -143,6 +144,9 @@ function cleanName(s){let n=s.replace(/\.(pdf|txt|md)$/i,"").replace(/[_\-]+/g,"
 async function fhash(buf){try{const b=await crypto.subtle.digest("SHA-256",buf);return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch(e){return"s"+buf.byteLength+":"+Date.now()}}
 let dupN=0,PG={i:1,n:1},FAIL=[];
 function bad(n,r){FAIL.push({n,r})}
+function TO(p,ms,msg){let t;return Promise.race([p,new Promise((_,rj)=>{t=setTimeout(()=>rj(new Error(msg||"tempo scaduto: il file non risponde")),ms)})]).finally(()=>clearTimeout(t))}
+let WL=null;
+async function keepAwake(on){window.__imp=on;try{if(on)WL=await navigator.wakeLock.request("screen");else if(WL){await WL.release();WL=null}}catch(e){}}
 function showFail(save=true){
   const R=$("#rep");R.innerHTML="";
   if(save)try{localStorage.setItem("mr_fail",JSON.stringify(FAIL))}catch(e){}
@@ -229,12 +233,12 @@ function fill(){
   games.forEach(g=>{const o=el("option");o.value=g.id;o.textContent=g.name;if(cur&&g.id===cur.id)o.selected=true;s.append(o)});
   $("#del").disabled=!cur;
 }
-function net(){const n=$("#net");const on=navigator.onLine;n.textContent=on?"online":"offline";n.className=on?"on":""}
+function net(){const n=$("#net");const on=navigator.onLine;n.textContent=(on?"online":"offline")+" · v10";n.className=on?"on":""}
 function send(){const i=$("#q"),v=i.value.trim();if(!v)return;if(!cur){note("Importa prima un regolamento.");return}i.value="";ask(v)}
 addEventListener("error",e=>note("Errore: "+e.message));
 $("#txt").onclick=()=>$("#paste").classList.toggle("on");
 $("#psave").onclick=async()=>{const t=$("#pt").value.trim();if(!t)return;const pages=[];for(let i=0;i<t.length;i+=3000)pages.push(t.slice(i,i+3000));await saveGame($("#pn").value.trim()||"Gioco senza nome",pages);$("#pt").value="";$("#pn").value="";$("#paste").classList.remove("on")};
-$("#file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";const n0=games.length;dupN=0;FAIL=[];showFail();for(let i=0;i<fs.length;i++){PG={i:i+1,n:fs.length};prog(i+1,fs.length,cleanName(fs[i].name),0);await importFile(fs[i]);showFail();await new Promise(r=>setTimeout(r,30))}$("#pb").style.width="100%";setTimeout(()=>$("#prog").classList.remove("on"),700);const ok=games.length-n0;if(fs.length>1){note(`Importati ${ok} su ${fs.length}${dupN?`, ${dupN} già presenti`:""}${FAIL.length?`, ${FAIL.length} con errore`:""}.`);feed.innerHTML="";hint(ok?`${ok} regolamenti importati. Scegli il gioco dal menu e fai una domanda.`:dupN?"Erano già tutti presenti.":"Nessun file importato.")}showFail()};
+$("#file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";const n0=games.length;dupN=0;FAIL=[];showFail();keepAwake(true);for(let i=0;i<fs.length;i++){PG={i:i+1,n:fs.length};prog(i+1,fs.length,cleanName(fs[i].name),0);await importFile(fs[i]);showFail();await new Promise(r=>setTimeout(r,30))}keepAwake(false);$("#pb").style.width="100%";setTimeout(()=>$("#prog").classList.remove("on"),700);const ok=games.length-n0;if(fs.length>1){note(`Importati ${ok} su ${fs.length}${dupN?`, ${dupN} già presenti`:""}${FAIL.length?`, ${FAIL.length} con errore`:""}.`);feed.innerHTML="";hint(ok?`${ok} regolamenti importati. Scegli il gioco dal menu e fai una domanda.`:dupN?"Erano già tutti presenti.":"Nessun file importato.")}showFail()};
 $("#sel").onchange=e=>{cur=games.find(g=>g.id===e.target.value)||null;feed.innerHTML="";cur&&hint(`Domande su “${cur.name}”.`)};
 let armed=0;
 $("#del").onclick=async e=>{
@@ -270,7 +274,7 @@ addEventListener("online",net);addEventListener("offline",net);net();
   showFail(false);
   hint(cur?`Domande su “${cur.name}”.`:"Importa un regolamento (PDF o testo) per iniziare.");
 })();
-if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+if("serviceWorker"in navigator){const had=!!navigator.serviceWorker.controller;addEventListener("load",()=>navigator.serviceWorker.register("sw.js").then(r=>r.update()).catch(()=>{}));navigator.serviceWorker.addEventListener("controllerchange",()=>{if(had&&!window.__r&&!window.__imp){window.__r=1;location.reload()}})}
 </script>
 </body>
 </html>
