@@ -1,0 +1,7 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ripristino</title>
+<style>body{background:#000;color:#e9f2f7;font:16px/1.6 Georgia,serif;padding:24px;max-width:34rem;margin:auto}h1{color:#a9d8f2}a{color:#a9d8f2}</style></head><body>
+<h1>THE MEEPLE RULE</h1><p id="m">Ripristino in corso…</p><p><a href="./index.html">Apri l’app</a></p>
+<script>
+(async()=>{let n=0;try{const r=await navigator.serviceWorker.getRegistrations();for(const x of r){await x.unregister();n++}const k=await caches.keys();for(const c of k)await caches.delete(c)}catch(e){}
+document.getElementById("m").textContent="Fatto: aggiornamento forzato ("+n+" servizio/i rimosso/i). I regolamenti salvati non sono stati toccati. Tocca “Apri l’app” e, quando sei online, ricarica una volta.";})();
+</script></body></html>
